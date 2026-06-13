@@ -176,3 +176,24 @@ pre {
     width: min(72vw, 220px);
   }
 }
+
+.game-scene-card {
+  margin-bottom: 24px;
+  padding: 12px;
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: min(62vh, 620px);
+  min-height: 360px;
+  border-radius: 18px;
+  outline: none;
+  touch-action: none;
+}
+
+.scene-error {
+  margin: 12px;
+  color: #ff8181;
+  font-weight: 800;
+}
