@@ -1,0 +1,18 @@
+{
+  "name": "apex-rotor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "socket.io": "file:vendor/socket.io",
+    "socket.io-client": "file:vendor/socket.io-client"
+  },
+  "devDependencies": {
+    "vite": "file:vendor/vite"
+  }
+}
