@@ -36,6 +36,7 @@ export const renderRemoteRoute = (root: HTMLElement, roomId: string): void => {
       <section class="card hero-card">
         <p class="eyebrow">Phone remote</p>
         <h1>Room <span id="room-id"></span></h1>
+        <p class="hint">This page is the controller. Open <code>/game</code> on your PC, not here.</p>
         <div class="status-row">Status: <strong id="status"></strong></div>
       </section>
       <section class="controls">

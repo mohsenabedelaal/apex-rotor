@@ -10,13 +10,175 @@ type DroneRuntime = {
 
 const generateRoomId = (): string => Math.random().toString(36).slice(2, 8).toUpperCase();
 
+const getRoomId = (): string => {
+  const roomFromUrl = new URLSearchParams(window.location.search).get('room');
+
+  if (roomFromUrl?.match(/^[A-Za-z0-9-]+$/)) {
+    return roomFromUrl.toUpperCase();
+  }
+
+  const roomId = generateRoomId();
+  window.history.replaceState(null, '', `/game?room=${roomId}`);
+  return roomId;
+};
+
 const formatState = (state: ControllerState): string => JSON.stringify(state, null, 2);
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
 const loadBabylon = async (): Promise<BabylonModule> => {
   const importFromCdn = new Function('url', 'return import(url)') as (url: string) => Promise<BabylonModule>;
-  return importFromCdn('https://cdn.jsdelivr.net/npm/@babylonjs/core@9.12.0/+esm');
+  const timeout = new Promise<never>((_, reject) => {
+    window.setTimeout(() => reject(new Error('Babylon.js CDN load timed out.')), 8000);
+  });
+
+  return Promise.race([
+    importFromCdn('https://cdn.jsdelivr.net/npm/@babylonjs/core@9.12.0/+esm'),
+    timeout,
+  ]);
+};
+
+const createFallbackDroneScene = (canvas: HTMLCanvasElement, getControls: () => ControllerState): DroneRuntime => {
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    throw new Error('2D canvas context is unavailable.');
+  }
+
+  let animationFrame = 0;
+  let previousTime = performance.now();
+  let previousReset = false;
+  let x = 0;
+  let y = 0;
+  let yaw = 0;
+  let velocityX = 0;
+  let velocityY = 0;
+  let altitude = 0.35;
+
+  const reset = (): void => {
+    x = 0;
+    y = 0;
+    yaw = 0;
+    velocityX = 0;
+    velocityY = 0;
+    altitude = 0.35;
+  };
+
+  const resize = (): void => {
+    const { width, height } = canvas.getBoundingClientRect();
+    const scale = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(width * scale));
+    canvas.height = Math.max(1, Math.floor(height * scale));
+    context.setTransform(scale, 0, 0, scale, 0, 0);
+  };
+
+  const drawGrid = (width: number, height: number): void => {
+    context.fillStyle = '#163f2d';
+    context.fillRect(0, 0, width, height);
+    context.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    context.lineWidth = 1;
+
+    for (let gridX = 0; gridX < width; gridX += 42) {
+      context.beginPath();
+      context.moveTo(gridX, 0);
+      context.lineTo(gridX, height);
+      context.stroke();
+    }
+
+    for (let gridY = 0; gridY < height; gridY += 42) {
+      context.beginPath();
+      context.moveTo(0, gridY);
+      context.lineTo(width, gridY);
+      context.stroke();
+    }
+  };
+
+  const drawDrone = (centerX: number, centerY: number): void => {
+    context.save();
+    context.translate(centerX + x, centerY + y);
+    context.rotate(yaw);
+    context.scale(1 + altitude * 0.8, 1 + altitude * 0.8);
+
+    context.shadowColor = 'rgba(0, 0, 0, 0.35)';
+    context.shadowBlur = 18;
+    context.shadowOffsetY = 14;
+    context.fillStyle = '#0a1424';
+    context.beginPath();
+    context.ellipse(0, 24, 38, 12, 0, 0, Math.PI * 2);
+    context.fill();
+    context.shadowColor = 'transparent';
+
+    context.strokeStyle = '#29bdfd';
+    context.lineWidth = 8;
+    context.lineCap = 'round';
+    context.beginPath();
+    context.moveTo(-48, -32);
+    context.lineTo(48, 32);
+    context.moveTo(48, -32);
+    context.lineTo(-48, 32);
+    context.stroke();
+
+    context.fillStyle = '#1cc7ff';
+    context.fillRect(-22, -14, 44, 28);
+    context.fillStyle = '#ffe666';
+    context.beginPath();
+    context.moveTo(0, -28);
+    context.lineTo(14, -8);
+    context.lineTo(-14, -8);
+    context.closePath();
+    context.fill();
+
+    context.fillStyle = '#f8fbff';
+    for (const [rotorX, rotorY] of [[-56, -38], [56, -38], [-56, 38], [56, 38]]) {
+      context.beginPath();
+      context.ellipse(rotorX, rotorY, 22, 7, performance.now() / 80, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    context.restore();
+  };
+
+  const renderFrame = (time: number): void => {
+    const deltaSeconds = Math.min((time - previousTime) / 1000, 0.05);
+    previousTime = time;
+
+    const controls = getControls();
+    if (controls.reset && !previousReset) {
+      reset();
+    }
+    previousReset = controls.reset;
+
+    yaw += controls.leftJoystick.x * 2.4 * deltaSeconds;
+    altitude = clamp(altitude + -controls.leftJoystick.y * deltaSeconds, 0, 1);
+
+    const pitch = -controls.rightJoystick.y;
+    const roll = controls.rightJoystick.x;
+    velocityX += (Math.cos(yaw) * roll + Math.sin(yaw) * pitch) * 420 * deltaSeconds;
+    velocityY += (-Math.sin(yaw) * roll + Math.cos(yaw) * pitch) * 420 * deltaSeconds;
+    velocityX *= controls.brake ? 0.84 : 0.96;
+    velocityY *= controls.brake ? 0.84 : 0.96;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    x = clamp(x + velocityX * deltaSeconds, -width * 0.42, width * 0.42);
+    y = clamp(y + velocityY * deltaSeconds, -height * 0.38, height * 0.38);
+
+    drawGrid(width, height);
+    drawDrone(width / 2, height / 2);
+    animationFrame = window.requestAnimationFrame(renderFrame);
+  };
+
+  resize();
+  window.addEventListener('resize', resize);
+  animationFrame = window.requestAnimationFrame(renderFrame);
+
+  return {
+    reset,
+    dispose: () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', resize);
+    },
+  };
 };
 
 const createDroneScene = async (canvas: HTMLCanvasElement, getControls: () => ControllerState): Promise<DroneRuntime> => {
@@ -163,9 +325,25 @@ const createDroneScene = async (canvas: HTMLCanvasElement, getControls: () => Co
   };
 };
 
+const resolveRemoteBaseUrl = async (): Promise<string> => {
+  const { hostname, origin } = window.location;
+
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return origin;
+  }
+
+  try {
+    const response = await fetch('/__network_info');
+    const data = await response.json() as { urls?: string[] };
+    return data.urls?.[0] ?? origin;
+  } catch {
+    return origin;
+  }
+};
+
 export const renderGameRoute = (root: HTMLElement): void => {
-  const roomId = generateRoomId();
-  const remoteUrl = `${window.location.origin}/remote/${roomId}`;
+  const roomId = getRoomId();
+  let remoteUrl = `${window.location.origin}/remote/${roomId}`;
   let status: ConnectionStatus = 'waiting';
   let controllerState = createDefaultControllerState();
   let droneRuntime: DroneRuntime | null = null;
@@ -175,8 +353,9 @@ export const renderGameRoute = (root: HTMLElement): void => {
       <section class="card hero-card">
         <p class="eyebrow">Game screen</p>
         <h1>Room <span id="room-id"></span></h1>
-        <p>Open this remote URL on your phone browser:</p>
+        <p>Open this remote URL on your phone browser (not <code>/game</code>):</p>
         <a id="remote-url" class="remote-url"></a>
+        <p class="hint">Keep this tab open on your PC. The room ID on your phone must match exactly.</p>
         <div class="status-row">Status: <strong id="status"></strong></div>
       </section>
       <section class="game-scene-card card">
@@ -210,13 +389,19 @@ export const renderGameRoute = (root: HTMLElement): void => {
 
   render();
 
+  void resolveRemoteBaseUrl().then((baseUrl) => {
+    remoteUrl = `${baseUrl}/remote/${roomId}`;
+    render();
+  });
+
   createDroneScene(canvas, () => controllerState)
     .then((runtime) => {
       droneRuntime = runtime;
     })
     .catch((error: unknown) => {
       console.error('Failed to load Babylon.js scene', error);
-      canvas.insertAdjacentHTML('afterend', '<p class="scene-error">Unable to load the 3D scene. Check your network connection and refresh.</p>');
+      droneRuntime = createFallbackDroneScene(canvas, () => controllerState);
+      canvas.insertAdjacentHTML('afterend', '<p class="scene-error">3D engine unavailable. Running local canvas fallback.</p>');
     });
 
   const socket = createSocket();

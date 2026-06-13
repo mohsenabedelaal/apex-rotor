@@ -1,11 +1,28 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
+import { networkInterfaces } from 'node:os';
 import { extname, join, normalize } from 'node:path';
 
 const HOST = '0.0.0.0';
 const PORT = Number(process.env.PORT ?? 5173);
 const root = process.cwd();
+
+const getLanAddresses = () => {
+  const addresses = [];
+
+  for (const iface of Object.values(networkInterfaces())) {
+    for (const addr of iface ?? []) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        addresses.push(addr.address);
+      }
+    }
+  }
+
+  return addresses;
+};
+
+const getNetworkUrls = () => getLanAddresses().map((address) => `http://${address}:${PORT}`);
 
 const clients = new Map();
 const gameSocketsByRoom = new Map();
@@ -22,10 +39,17 @@ const send = (id, event, ...args) => {
 
 const emitStatus = (roomId) => {
   const status = (remoteSocketsByRoom.get(roomId)?.size ?? 0) > 0 ? 'connected' : 'waiting';
+  const notified = new Set();
 
-  for (const [id, client] of clients) {
-    if (client.roomId === roomId) {
-      send(id, 'room:status', status);
+  const gameSocketId = gameSocketsByRoom.get(roomId);
+  if (gameSocketId) {
+    send(gameSocketId, 'room:status', status);
+    notified.add(gameSocketId);
+  }
+
+  for (const remoteSocketId of remoteSocketsByRoom.get(roomId) ?? []) {
+    if (!notified.has(remoteSocketId)) {
+      send(remoteSocketId, 'room:status', status);
     }
   }
 };
@@ -92,8 +116,9 @@ const handleSocketEmit = (id, event, args) => {
 
 const socketClientShim = `
 export const io = () => {
-  const id = crypto.randomUUID();
+  const id = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
   const handlers = new Map();
+  let connected = false;
 
   const callHandlers = (event, ...args) => {
     for (const handler of handlers.get(event) ?? []) {
@@ -106,26 +131,43 @@ export const io = () => {
       const eventHandlers = handlers.get(event) ?? [];
       eventHandlers.push(handler);
       handlers.set(event, eventHandlers);
+
+      if (event === 'connect' && connected) {
+        queueMicrotask(handler);
+      }
+
       return this;
     },
     emit(event, ...args) {
-      fetch('/__socket_emit', {
+      const body = JSON.stringify({ id, event, args });
+      const post = () => fetch('/__socket_emit', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id, event, args }),
+        body,
       });
+
+      if (events.readyState === EventSource.OPEN) {
+        post();
+      } else {
+        events.addEventListener('open', () => post(), { once: true });
+      }
+
       return this;
     },
   };
 
   const events = new EventSource('/__socket_events?id=' + encodeURIComponent(id));
-  events.addEventListener('open', () => callHandlers('connect'));
+  events.addEventListener('open', () => {
+    connected = true;
+    queueMicrotask(() => callHandlers('connect'));
+  });
   events.addEventListener('message', (message) => {
     const payload = JSON.parse(message.data);
     callHandlers(payload.event, ...payload.args);
   });
   events.addEventListener('error', () => {
     if (events.readyState === EventSource.CLOSED) {
+      connected = false;
       callHandlers('disconnect');
     }
   });
@@ -184,6 +226,12 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? '/', `http://${request.headers.host}`);
 
+    if (url.pathname === '/__network_info') {
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify({ urls: getNetworkUrls() }));
+      return;
+    }
+
     if (url.pathname === '/__socket_client.js') {
       response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
       response.end(socketClientShim);
@@ -236,5 +284,10 @@ const server = createServer(async (request, response) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Apex Rotor dev server listening on http://localhost:${PORT}`);
+
+  for (const url of getNetworkUrls()) {
+    console.log(`Phone access: ${url}/game`);
+  }
+
   console.log(`Open http://localhost:${PORT}/game to start a room.`);
 });
