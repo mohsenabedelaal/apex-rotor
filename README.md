@@ -1,6 +1,6 @@
 # Apex Rotor
 
-A simple TypeScript Vite + Node.js Socket.IO demo that turns a phone browser into a touch controller for a game screen.
+A simple TypeScript browser demo that turns a phone browser into a touch controller for a game screen.
 
 ## Local setup
 
@@ -10,7 +10,7 @@ Install dependencies:
 npm install
 ```
 
-Start the Vite frontend and Socket.IO server together:
+Start the local development server:
 
 ```bash
 npm run dev
@@ -32,12 +32,13 @@ Open that remote URL on a phone browser connected to the same network as the dev
 
 ## Scripts
 
-- `npm run dev` - starts Vite and the Socket.IO server concurrently.
+- `npm run dev` - starts the local development server, serves the browser app, and relays remote control state between `/game` and `/remote/:roomId`.
 - `npm run build` - type-checks the app and creates the Vite production build.
 - `npm run typecheck` - runs TypeScript without emitting files.
 
 ## How it works
 
-- `/game` generates a room ID, connects to the Socket.IO server, and waits for a remote.
+- `/game` generates a room ID, connects to the local dev server, and waits for a remote.
 - `/remote/:roomId` joins that room, displays two touch joysticks plus reset and brake buttons, and streams controller state to the game.
-- The server forwards controller state within a single room and sends `waiting`, `connected`, and `disconnected` status updates.
+- The dev server forwards controller state within a single room and sends `waiting`, `connected`, and `disconnected` status updates.
+- The 3D game scene loads Babylon.js in the browser, so an internet connection is required the first time the scene opens.
