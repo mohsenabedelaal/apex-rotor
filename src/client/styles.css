@@ -197,3 +197,202 @@ pre {
   color: #ff8181;
   font-weight: 800;
 }
+
+.game-layout {
+  width: min(1280px, 100%);
+}
+
+.game-hero {
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 320px);
+  gap: 22px;
+  overflow: hidden;
+  position: relative;
+}
+
+.game-hero::before {
+  content: '';
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 460px;
+  height: 460px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(38, 209, 255, 0.36), transparent 68%);
+  pointer-events: none;
+}
+
+.hero-copy,
+.hint {
+  color: #b9c8dc;
+  line-height: 1.6;
+}
+
+.room-panel {
+  align-self: stretch;
+  border: 1px solid rgba(133, 215, 255, 0.28);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(133, 215, 255, 0.14), rgba(255, 255, 255, 0.06));
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.room-panel span {
+  color: #b9c8dc;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.room-panel strong,
+.hud-card strong {
+  color: #ffffff;
+}
+
+.setup-card {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 320px) auto;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.pilot-field {
+  color: #85d7ff;
+  display: grid;
+  font-size: 0.82rem;
+  font-weight: 900;
+  gap: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pilot-field input {
+  border: 1px solid rgba(133, 215, 255, 0.32);
+  border-radius: 16px;
+  background: rgba(2, 8, 23, 0.78);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  letter-spacing: normal;
+  min-height: 54px;
+  outline: none;
+  padding: 0 16px;
+  text-transform: none;
+}
+
+.pilot-field input:focus {
+  border-color: #85d7ff;
+  box-shadow: 0 0 0 4px rgba(133, 215, 255, 0.16);
+}
+
+.primary-action {
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #82f7ff, #67f0a4 48%, #ffe083);
+  color: #04111f;
+  cursor: pointer;
+  font-weight: 1000;
+  min-height: 58px;
+  padding: 0 26px;
+  text-transform: uppercase;
+  box-shadow: 0 18px 38px rgba(103, 240, 164, 0.2);
+}
+
+.primary-action:active {
+  transform: translateY(2px);
+}
+
+.hud-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.hud-card {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  padding: 18px;
+}
+
+.hud-card span {
+  color: #85d7ff;
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.hud-card strong {
+  font-size: clamp(1.4rem, 3.4vw, 2.4rem);
+}
+
+.game-scene-card {
+  background: linear-gradient(180deg, rgba(8, 20, 36, 0.86), rgba(3, 9, 18, 0.94));
+  position: relative;
+}
+
+.scene-banner {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 8px 14px;
+}
+
+.scene-banner span {
+  border-radius: 999px;
+  background: rgba(133, 215, 255, 0.16);
+  color: #85d7ff;
+  font-weight: 900;
+  padding: 8px 12px;
+  text-transform: capitalize;
+}
+
+.scene-banner span[data-phase='playing'] {
+  background: rgba(104, 240, 164, 0.16);
+  color: #68f0a4;
+}
+
+.scene-banner span[data-phase='finished'] {
+  background: rgba(255, 224, 131, 0.18);
+  color: #ffe083;
+}
+
+.scene-banner strong {
+  color: #f8fbff;
+  text-align: right;
+}
+
+.remote-card,
+.debug-card {
+  margin-top: 20px;
+}
+
+.debug-card summary {
+  cursor: pointer;
+  font-weight: 900;
+}
+
+@media (max-width: 860px) {
+  .game-hero,
+  .setup-card,
+  .hud-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scene-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .scene-banner strong {
+    text-align: left;
+  }
+}
